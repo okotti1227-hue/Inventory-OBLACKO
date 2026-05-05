@@ -193,7 +193,6 @@
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        // Изменил путь на inventory_oblacko, чтобы не смешивать с "око"
         const DB_PATH = 'inventory_oblacko';
         const SETTINGS_PATH = 'settings_oblacko';
 
@@ -334,7 +333,13 @@
         function checkNewSub(type) { const val = document.getElementById(type === 'add' ? 'addSubCatSelect' : 'editSubCatSelect').value; document.getElementById(type === 'add' ? 'addCustomSub' : 'editCustomSub').style.display = (val === 'NEW') ? 'block' : 'none'; }
         function setStatFilter(s) { globalStatusFilter = s; if (s === 'all') document.getElementById('searchInput').value = ''; renderItems(); updateStats(); }
         function filterByLoc(l) { const inp = document.getElementById('searchInput'); inp.value = (inp.value === l) ? '' : l; renderItems(); }
-        function openAddModal() { document.getElementById('addId').value = 'OKO-' + Math.floor(1000 + Math.random() * 9000); document.getElementById('fabMenu').classList.remove('active'); document.getElementById('addModal').classList.add('active'); }
+        
+        function openAddModal() { 
+            document.getElementById('addId').value = 'OBL-' + Math.floor(1000 + Math.random() * 9000); 
+            document.getElementById('fabMenu').classList.remove('active'); 
+            document.getElementById('addModal').classList.add('active'); 
+        }
+
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
         function openEditModal(id) { const it = items.find(i => i.id === id); document.getElementById('editItemTargetId').value = id; document.getElementById('editItemName').value = it.name; document.getElementById('editItemLocation').value = it.location; document.getElementById('editSubCatSelect').value = subCategories.includes(it.sub) ? it.sub : ""; document.getElementById('editModal').classList.add('active'); }
         function upStat(id, s) { db.ref(DB_PATH + '/' + id).update({ status: s }); setTimeout(() => showItemDetail(id), 300); }
@@ -347,9 +352,11 @@
             
             const now = new Date();
             const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
-            // Название прошлого месяца
+            
             const prevMonthIdx = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
             const prevMonthName = monthNames[prevMonthIdx];
+            const currentMonthName = monthNames[now.getMonth()];
+            
             const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
             const subContainer = document.getElementById('subStatsContent'); subContainer.innerHTML = '';
@@ -357,7 +364,6 @@
             
             allSubs.forEach(subName => {
                 const currentCount = items.filter(i => i.sub === subName).length;
-                // Считаем сколько было добавлено ДО начала текущего месяца
                 const prevCount = items.filter(i => { 
                     if (i.sub !== subName) return false; 
                     if (!i.addedDate) return true; 
@@ -368,8 +374,7 @@
 
                 const row = document.createElement('div'); 
                 row.className = 'sub-stat-row'; 
-                // Выводим: Прошлый месяц (название) -> Итого сейчас
-                row.innerHTML = `<span class="sub-stat-name">${subName}</span><span class="sub-stat-counts">${prevMonthName}: ${prevCount} &rarr; Итого: ${currentCount}</span>`; 
+                row.innerHTML = `<span class="sub-stat-name">${subName}</span><span class="sub-stat-counts">${prevMonthName}: ${prevCount} &rarr; ${currentMonthName}: ${currentCount}</span>`; 
                 subContainer.appendChild(row);
             });
         }
