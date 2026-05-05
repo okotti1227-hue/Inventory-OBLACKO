@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель Инвентаризации</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-4">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-gray-800">Управление инвентарем</h1>
+
+        <!-- Форма добавления -->
+        <div class="bg-white p-6 rounded-xl shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">Добавить новый предмет</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input id="newId" type="text" placeholder="ID (например, 001)" class="border p-2 rounded">
+                <input id="newName" type="text" placeholder="Название (Стул, ТВ...)" class="border p-2 rounded">
+                <input id="newLoc" type="text" placeholder="Место (Зал, Склад)" class="border p-2 rounded">
+                <input id="newPhoto" type="text" placeholder="Ссылка на фото" class="border p-2 rounded">
+                <textarea id="newDesc" placeholder="Описание" class="border p-2 rounded md:col-span-2"></textarea>
+                <button onclick="addItem()" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 md:col-span-2 font-bold">Добавить в базу</button>
+            </div>
+        </div>
+
+        <!-- Таблица предметов -->
+        <div class="bg-white rounded-xl shadow-md overflow-hidden">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-800 text-white">
+                    <tr>
+                        <th class="p-3">ID</th>
+                        <th class="p-3">Фото</th>
+                        <th class="p-3">Название</th>
+                        <th class="p-3">Место</th>
+                        <th class="p-3">Статус</th>
+                        <th class="p-3">QR</th>
+                    </tr>
+                </thead>
+                <tbody id="inventoryTable">
+                    <!-- Сюда попадут данные из Firebase -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBiVHV3P7UT1Mj9MIn2NzjVSmBmCLi7WmY",
+            authDomain: "oblacko-9fcac.firebaseapp.com",
+            databaseURL: "https://oblacko-9fcac-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "oblacko-9fcac",
+            storageBucket: "oblacko-9fcac.firebasestorage.app",
+            messagingSenderId: "1005381172072",
+            appId: "1:1005381172072:web:b4ae3f2c71e5001f3b74dd"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Загрузка списка
+        const inventoryRef = ref(db, 'items');
+        onValue(inventoryRef, (snapshot) => {
+            const data = snapshot.val();
+            const table = document.getElementById('inventoryTable');
+            table.innerHTML = "";
+
+            for (let id in data) {
+                const item = data[id];
+                const qrUrl = `https://chart.googleapis.com/chart?chs=150x150&cht=qr&chl=${encodeURIComponent(window.location.origin + window.location.pathname.replace('admin.html', 'index.html') + '?id=' + id)}`;
+                
+                table.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3 font-mono text-sm">${id}</td>
+                        <td class="p-3"><img src="${item.photo}" class="w-12 h-12 object-cover rounded"></td>
+                        <td class="p-3 font-bold">${item.name}</td>
+                        <td class="p-3">${item.location}</td>
+                        <td class="p-3"><span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">${item.status}</span></td>
+                        <td class="p-3">
+                            <a href="${qrUrl}" target="_blank" class="text-blue-600 underline text-xs">Открыть QR</a>
+                        </td>
+                    </tr>
+                `;
+            }
+        });
+
+        // Функция добавления
+        window.addItem = function() {
+            const id = document.getElementById('newId').value;
+            if(!id) return alert("Введите ID!");
+            
+            set(ref(db, 'items/' + id), {
+                name: document.getElementById('newName').value,
+                location: document.getElementById('newLoc').value,
+                desc: document.getElementById('newDesc').value,
+                photo: document.getElementById('newPhoto').value || "https://via.placeholder.com/150",
+                status: "В порядке"
+            }).then(() => {
+                alert("Добавлено!");
+                document.querySelectorAll('input, textarea').forEach(i => i.value = "");
+            });
+        }
+    </script>
+</body>
+</html>
