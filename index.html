@@ -51,7 +51,7 @@
         .sub-stat-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dotted #444; }
         .sub-stat-row:last-child { border-bottom: none; }
         .sub-stat-name { font-weight: bold; color: var(--oko-brown); }
-        .sub-stat-counts { color: var(--oko-green); }
+        .sub-stat-counts { color: var(--oko-green); font-size: 0.75rem; }
 
         .search-box { width: 100%; padding: 12px; border: 1px solid var(--oko-beige); margin-bottom: 15px; outline: none; font-size: 1rem; background: #252525; color: white; }
 
@@ -61,7 +61,7 @@
         .item-image-container { width: 100%; height: 250px; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         .item-image { width: 100%; height: 100%; object-fit: contain; }
         .item-content { padding: 12px; }
-        .qr-wrapper canvas, .qr-wrapper img { filter: invert(1); } /* Инверсия QR для темного фона */
+        .qr-wrapper canvas, .qr-wrapper img { filter: invert(1); }
         
         .status-badge { position: absolute; top: 10px; right: 10px; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; z-index: 5; background: #330000; color: #ff4444; border: 1px solid #ff4444; }
 
@@ -139,6 +139,7 @@
         </div>
     </div>
 
+    <!-- Модалки -->
     <div id="addModal" class="modal"><div class="modal-content">
         <button class="close-btn" onclick="closeModal('addModal')">&times;</button>
         <h2 style="color:var(--oko-green)">НОВЫЙ ОБЪЕКТ</h2><br>
@@ -176,7 +177,8 @@
         const USERS = { 
             "Tima": "oblacko1994", 
             "Artem": "oblacko2024", 
-            "Stetxem": "oblacko2025" 
+            "Stetxem": "oblacko2025",
+            "Amir": "oblacko2026"
         };
 
         const firebaseConfig = {
@@ -191,6 +193,10 @@
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+        // Изменил путь на inventory_oblacko, чтобы не смешивать с "око"
+        const DB_PATH = 'inventory_oblacko';
+        const SETTINGS_PATH = 'settings_oblacko';
+
         let items = [], subCategories = [], globalStatusFilter = 'all', html5QrCode = null;
 
         function checkAccess() {
@@ -208,13 +214,13 @@
         function showApp() {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('main-app').style.display = 'block';
-            db.ref('inventory').on('value', snap => {
+            db.ref(DB_PATH).on('value', snap => {
                 items = snap.val() ? Object.values(snap.val()) : [];
                 renderItems(); updateStats();
                 const urlId = new URLSearchParams(window.location.search).get('id');
                 if (urlId) { window.history.replaceState({}, '', window.location.origin + window.location.pathname); showItemDetail(urlId); }
             });
-            db.ref('settings/subCategories').on('value', snap => {
+            db.ref(SETTINGS_PATH + '/subCategories').on('value', snap => {
                 subCategories = snap.val() ? Object.values(snap.val()) : [];
                 updateDropdowns();
             });
@@ -237,13 +243,13 @@
 
             if (!name) return alert("Введите название!");
             if (isNameTaken(name)) return alert("Такое название уже есть!");
-            if (sub === 'NEW') { if (!custom) return alert("Имя группы!"); sub = custom; db.ref('settings/subCategories').push(sub); }
+            if (sub === 'NEW') { if (!custom) return alert("Имя группы!"); sub = custom; db.ref(SETTINGS_PATH + '/subCategories').push(sub); }
             
             document.getElementById('loader').style.display = 'flex';
             try {
                 let photo = 'https://via.placeholder.com/400x200?text=НЕТ+ФОТО';
                 if (file) photo = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(file); });
-                await db.ref('inventory/' + id).set({ id, name, location: loc, sub: sub || "Прочее", photo, status: 'ok', lastCheck: 'Нет', lastCheckBy: '---', addedDate: new Date().toLocaleDateString('ru-RU'), createdBy: user, updatedBy: user });
+                await db.ref(DB_PATH + '/' + id).set({ id, name, location: loc, sub: sub || "Прочее", photo, status: 'ok', lastCheck: 'Нет', lastCheckBy: '---', addedDate: new Date().toLocaleDateString('ru-RU'), createdBy: user, updatedBy: user });
                 document.getElementById('loader').style.display = 'none'; closeModal('addModal');
                 document.getElementById('itemName').value = ""; document.getElementById('itemPhoto').value = "";
             } catch (e) { document.getElementById('loader').style.display = 'none'; alert(e.message); }
@@ -256,13 +262,13 @@
 
             if (!name) return alert("Имя!");
             if (isNameTaken(name, id)) return alert("Такое название уже есть!");
-            if (sub === 'NEW') { if (!custom) return alert("Группа!"); sub = custom; db.ref('settings/subCategories').push(sub); }
+            if (sub === 'NEW') { if (!custom) return alert("Группа!"); sub = custom; db.ref(SETTINGS_PATH + '/subCategories').push(sub); }
 
             document.getElementById('loader').style.display = 'flex';
             try {
                 let up = { name, location: loc, sub: sub || "Прочее", updatedBy: user };
                 if (file) up.photo = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(file); });
-                await db.ref('inventory/' + id).update(up);
+                await db.ref(DB_PATH + '/' + id).update(up);
                 document.getElementById('loader').style.display = 'none'; closeModal('editModal'); setTimeout(() => showItemDetail(id), 300);
             } catch (e) { document.getElementById('loader').style.display = 'none'; alert(e.message); }
         }
@@ -331,20 +337,43 @@
         function openAddModal() { document.getElementById('addId').value = 'OKO-' + Math.floor(1000 + Math.random() * 9000); document.getElementById('fabMenu').classList.remove('active'); document.getElementById('addModal').classList.add('active'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
         function openEditModal(id) { const it = items.find(i => i.id === id); document.getElementById('editItemTargetId').value = id; document.getElementById('editItemName').value = it.name; document.getElementById('editItemLocation').value = it.location; document.getElementById('editSubCatSelect').value = subCategories.includes(it.sub) ? it.sub : ""; document.getElementById('editModal').classList.add('active'); }
-        function upStat(id, s) { db.ref('inventory/' + id).update({ status: s }); setTimeout(() => showItemDetail(id), 300); }
-        function markCheck(id) { const user = localStorage.getItem('oko_user') || "---"; db.ref('inventory/' + id).update({ lastCheck: new Date().toLocaleDateString('ru-RU'), lastCheckBy: user }); closeModal('itemModal'); }
-        async function deleteItem(id) { if (confirm("Удалить?")) { await db.ref('inventory/' + id).remove(); closeModal('itemModal'); } }
+        function upStat(id, s) { db.ref(DB_PATH + '/' + id).update({ status: s }); setTimeout(() => showItemDetail(id), 300); }
+        function markCheck(id) { const user = localStorage.getItem('oko_user') || "---"; db.ref(DB_PATH + '/' + id).update({ lastCheck: new Date().toLocaleDateString('ru-RU'), lastCheckBy: user }); closeModal('itemModal'); }
+        async function deleteItem(id) { if (confirm("Удалить?")) { await db.ref(DB_PATH + '/' + id).remove(); closeModal('itemModal'); } }
+        
         function updateStats() {
             document.getElementById('totalItems').innerText = items.length; document.getElementById('okItems').innerText = items.filter(i => i.status === 'ok').length; document.getElementById('repairItems').innerText = items.filter(i => i.status === 'repair').length; document.getElementById('locHall').innerText = items.filter(i => i.location === 'Зал').length; document.getElementById('locKitchen').innerText = items.filter(i => i.location === 'Кухня').length; document.getElementById('locBar').innerText = items.filter(i => i.location === 'Бар').length; document.getElementById('locWh').innerText = items.filter(i => i.location === 'Склад').length;
             document.querySelectorAll('.stats-bar .stat-card').forEach(c => c.classList.remove('active-filter')); const btn = document.getElementById('btn-' + globalStatusFilter); if(btn) btn.classList.add('active-filter');
-            const now = new Date(); const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1); const subContainer = document.getElementById('subStatsContent'); subContainer.innerHTML = '';
+            
+            const now = new Date();
+            const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+            // Название прошлого месяца
+            const prevMonthIdx = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+            const prevMonthName = monthNames[prevMonthIdx];
+            const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+            const subContainer = document.getElementById('subStatsContent'); subContainer.innerHTML = '';
             const allSubs = [...new Set(items.map(i => i.sub || "Прочее"))].sort();
+            
             allSubs.forEach(subName => {
                 const currentCount = items.filter(i => i.sub === subName).length;
-                const prevCount = items.filter(i => { if (i.sub !== subName) return false; if (!i.addedDate) return true; const parts = i.addedDate.split('.'); const d = new Date(parts[2], parts[1] - 1, parts[0]); return d < startOfCurrentMonth; }).length;
-                const row = document.createElement('div'); row.className = 'sub-stat-row'; row.innerHTML = `<span class="sub-stat-name">${subName}</span><span class="sub-stat-counts">${prevCount} &rarr; ${currentCount}</span>`; subContainer.appendChild(row);
+                // Считаем сколько было добавлено ДО начала текущего месяца
+                const prevCount = items.filter(i => { 
+                    if (i.sub !== subName) return false; 
+                    if (!i.addedDate) return true; 
+                    const parts = i.addedDate.split('.'); 
+                    const d = new Date(parts[2], parts[1] - 1, parts[0]); 
+                    return d < startOfCurrentMonth; 
+                }).length;
+
+                const row = document.createElement('div'); 
+                row.className = 'sub-stat-row'; 
+                // Выводим: Прошлый месяц (название) -> Итого сейчас
+                row.innerHTML = `<span class="sub-stat-name">${subName}</span><span class="sub-stat-counts">${prevMonthName}: ${prevCount} &rarr; Итого: ${currentCount}</span>`; 
+                subContainer.appendChild(row);
             });
         }
+
         function openScanner() { document.getElementById('scannerModal').classList.add('active'); html5QrCode = new Html5Qrcode("reader"); html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, t => { const id = t.includes('?id=') ? t.split('?id=')[1] : t; closeScanner(); showItemDetail(id); }); }
         function closeScanner() { if (html5QrCode) html5QrCode.stop(); closeModal('scannerModal'); }
         function exportToExcel() { const data = items.map(i => ({ ID: i.id, Имя: i.name, Локация: i.location, Группа: i.sub, Статус: i.status, Проверил: i.lastCheckBy || '---', Дата_проверки: i.lastCheck })); const ws = XLSX.utils.json_to_sheet(data); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Inventory"); XLSX.writeFile(wb, "Oblako_Inventory.xlsx"); }
