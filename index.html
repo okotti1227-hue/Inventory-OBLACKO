@@ -1,3 +1,4 @@
+--- START OF FILE index.html ---
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -68,7 +69,11 @@
         
         .status-badge { position: absolute; top: 10px; right: 10px; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; z-index: 5; background: #330000; color: #ff4444; border: 1px solid #ff4444; }
 
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; overflow-y: auto; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); overflow-y: auto; }
+        #itemModal { z-index: 2000; }
+        #addModal, #editModal { z-index: 3000; } 
+        #scannerModal { z-index: 4000; }
+
         .modal.active { display: block; }
         .modal-content { background: var(--oko-white); width: 100%; min-height: 100vh; padding: 20px; position: relative; }
         .close-btn { position: absolute; top: 10px; right: 15px; font-size: 2.5rem; border: none; background: none; cursor: pointer; color: var(--oko-brown); z-index: 10; }
@@ -210,21 +215,9 @@
         function showApp() {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('main-app').style.display = 'block';
-            
-            db.ref(DB_PATH).on('value', snap => { 
-                items = snap.val() ? Object.values(snap.val()) : []; 
-                renderItems(); 
-                updateStats(); 
-            });
-            
-            db.ref(SETTINGS_PATH).on('value', snap => { 
-                const val = snap.val();
-                subCategories = val ? Object.values(val) : []; 
-                updateDropdowns(); 
-            });
-
+            db.ref(DB_PATH).on('value', snap => { items = snap.val() ? Object.values(snap.val()) : []; renderItems(); updateStats(); });
+            db.ref(SETTINGS_PATH).on('value', snap => { subCategories = snap.val() ? Object.values(snap.val()) : []; updateDropdowns(); });
             db.ref(STATS_PATH).on('value', snap => { snapshots = snap.val() || {}; updateStats(); });
-
             db.ref('.info/connected').on('value', snap => {
                 const dot = document.getElementById('statusDot'), label = document.getElementById('statusLabel');
                 if (snap.val()) { dot.classList.add('active'); label.innerText = 'ONLINE'; } 
@@ -235,44 +228,31 @@
         async function saveNewItem() {
             const id = document.getElementById('addId').value, name = document.getElementById('itemName').value.trim(), loc = document.getElementById('itemLocation').value;
             let sub = document.getElementById('addSubCatSelect').value, cust = document.getElementById('addCustomSub').value.trim(), file = document.getElementById('itemPhoto').files[0], user = localStorage.getItem('oko_user');
-            
             if (!name) return alert("Введите название!"); 
-            if (sub === 'NEW') { 
-                if (!cust) return alert("Введите название группы!"); 
-                sub = cust; 
-                db.ref(SETTINGS_PATH).push(sub); // Не ждем await, чтобы не висеть
-            }
+            if (sub === 'NEW') { if (!cust) return alert("Введите название!"); sub = cust; db.ref(SETTINGS_PATH).push(sub); }
             const finalSub = sub || "Прочее";
-
             document.getElementById('loader').style.display = 'flex';
             try {
                 let ph = 'https://via.placeholder.com/400x200?text=НЕТ+ФОТО'; 
                 if (file) ph = await new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(file); });
-                
                 await db.ref(DB_PATH + '/' + id).set({ id, name, location: loc, sub: finalSub, photo: ph, status: 'ok', lastCheck: 'Нет', lastCheckBy: '---', addedDate: new Date().toLocaleDateString('ru-RU'), createdBy: user, updatedBy: user });
                 closeModal('addModal');
-                document.getElementById('itemName').value = "";
-                document.getElementById('itemPhoto').value = "";
-            } catch (e) { alert("Ошибка сохранения. Проверьте интернет или правила базы."); }
-            finally { document.getElementById('loader').style.display = 'none'; }
+                document.getElementById('itemName').value = ""; document.getElementById('itemPhoto').value = "";
+            } catch (e) { alert("Ошибка!"); } finally { document.getElementById('loader').style.display = 'none'; }
         }
 
         async function saveEditChanges() {
             const id = document.getElementById('editItemTargetId').value, name = document.getElementById('editItemName').value.trim(), loc = document.getElementById('editItemLocation').value;
             let sub = document.getElementById('editSubCatSelect').value, cust = document.getElementById('editCustomSub').value.trim(), file = document.getElementById('editItemPhoto').files[0], user = localStorage.getItem('oko_user');
-            
-            if (sub === 'NEW') { if (!cust) return alert("Введите название группы!"); sub = cust; db.ref(SETTINGS_PATH).push(sub); }
+            if (sub === 'NEW') { if (!cust) return alert("Введите название!"); sub = cust; db.ref(SETTINGS_PATH).push(sub); }
             const finalSub = sub || "Прочее";
-
             document.getElementById('loader').style.display = 'flex';
             try {
                 let up = { name, location: loc, sub: finalSub, updatedBy: user }; 
                 if (file) up.photo = await new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(file); });
                 await db.ref(DB_PATH + '/' + id).update(up); 
-                closeModal('editModal'); 
-                showItemDetail(id);
-            } catch (e) { alert("Ошибка изменения."); }
-            finally { document.getElementById('loader').style.display = 'none'; }
+                closeModal('editModal'); showItemDetail(id);
+            } catch (e) { alert("Ошибка!"); } finally { document.getElementById('loader').style.display = 'none'; }
         }
 
         function updateStats() {
@@ -281,24 +261,17 @@
             const curK = `${curYear}-${String(curMIdx + 1).padStart(2, '0')}`;
             const prevD = new Date(curYear, curMIdx - 1, 1), prevMIdx = prevD.getMonth();
             const prevK = `${prevD.getFullYear()}-${String(prevMIdx + 1).padStart(2, '0')}`;
-
             const curCounts = {};
             const allS = [...new Set(items.map(i => i.sub || "Прочее"))];
             allS.forEach(s => { curCounts[s] = items.filter(it => it.sub === s).length; });
-            
-            // Сохраняем слепок месяца только если мы онлайн
-            if (document.getElementById('statusLabel').innerText === 'ONLINE') {
-                db.ref(`${STATS_PATH}/${curK}`).set(curCounts);
-            }
-
+            if (document.getElementById('statusLabel').innerText === 'ONLINE') db.ref(`${STATS_PATH}/${curK}`).set(curCounts);
             document.getElementById('totalItems').innerText = items.length;
             document.getElementById('okItems').innerText = items.filter(i => i.status === 'ok').length;
             document.getElementById('repairItems').innerText = items.filter(i => i.status === 'repair').length;
-
             const cont = document.getElementById('subStatsContent'); cont.innerHTML = '';
             const prevDta = snapshots[prevK] || {};
             allS.sort().forEach(sub => {
-                const n = curCounts[sub] || 0, w = prevDta[sub] !== undefined ? prevDta[sub] : n, d = n - w;
+                const n = curCounts[sub] || 0, w = prevDta[sub] !== undefined ? prevDta[sub] : 0, d = n - w;
                 let dt = '', tc = ''; if (d > 0) { dt = ` (+${d})`; tc = 'trend-up'; } else if (d < 0) { dt = ` (${d})`; tc = 'trend-down'; }
                 const row = document.createElement('div'); row.className = 'sub-stat-row';
                 row.innerHTML = `<span class="sub-stat-name">${sub}</span><span class="sub-stat-counts"><span class="month-label">${ruMonths[prevMIdx]}:</span> ${w} &rarr; <span class="month-label">${ruMonths[curMIdx]}:</span> <span class="${tc}">${n}${dt}</span></span>`;
@@ -332,8 +305,41 @@
         function showItemDetail(id) {
             const it = items.find(i => i.id === id); if (!it) return;
             const sBtn = it.status === 'repair' ? `<button class="btn-action btn-green" onclick="upStat('${it.id}', 'ok')">✅ ВЕРНУТЬ</button>` : `<button class="btn-action btn-danger" onclick="upStat('${it.id}', 'repair')">🔧 В РЕМОНТ</button>`;
-            document.getElementById('itemModalContent').innerHTML = `<button class="close-btn" onclick="closeModal('itemModal')">&times;</button><div class="detail-photo-box"><img src="${it.photo}" class="detail-photo"></div><h2 style="color:var(--oko-green);">${it.name}</h2><div style="background:#252525; padding:15px; border-radius:4px; margin-bottom:10px; font-size:0.9rem; color:#ccc;"><p>ID: ${it.id}</p><p>Локация: ${it.location}</p><p>Группа: ${it.sub}</p><p>Проверка: ${it.lastCheck} (${it.lastCheckBy})</p></div><button class="btn-action btn-green" onclick="markCheck('${it.id}')">ИНВЕНТАРИЗАЦИЯ ПРОЙДЕНА</button><button class="btn-action" onclick="openEditModal('${it.id}')">📦 ИЗМЕНИТЬ</button>${sBtn}<button class="btn-action btn-danger" onclick="deleteItem('${it.id}')">УДАЛИТЬ</button>`;
+            document.getElementById('itemModalContent').innerHTML = `
+                <button class="close-btn" onclick="closeModal('itemModal')">&times;</button>
+                <div class="detail-photo-box"><img src="${it.photo}" class="detail-photo"></div>
+                <h2 style="color:var(--oko-green);">${it.name}</h2>
+                <div style="background:#252525; padding:15px; border-radius:4px; margin-bottom:10px; font-size:0.9rem; color:#ccc;">
+                    <p>ID: ${it.id}</p><p>Локация: ${it.location}</p><p>Группа: ${it.sub}</p><p>Проверка: ${it.lastCheck} (${it.lastCheckBy})</p>
+                </div>
+                <button class="btn-action btn-green" onclick="markCheck('${it.id}')">ИНВЕНТАРИЗАЦИЯ ПРОЙДЕНА</button>
+                <button class="btn-action" onclick="openEditModal('${it.id}')">📦 ИЗМЕНИТЬ</button>
+                <button class="btn-action" style="color:#a5b4fc; border-color:#a5b4fc;" onclick="printSingleItemQR('${it.id}', '${it.name}')">🖨️ ПЕЧАТЬ QR</button>
+                ${sBtn}
+                <button class="btn-action btn-danger" onclick="deleteItem('${it.id}')">УДАЛИТЬ</button>
+            `;
             document.getElementById('itemModal').classList.add('active');
+        }
+
+        function printSingleItemQR(id, name) {
+            const win = window.open('', '', 'width=600,height=600');
+            win.document.write(`<html><head><title>Print QR</title><style>body{text-align:center;padding:20px;font-family:sans-serif;} .qr{margin:20px auto;} h2{margin:0;}</style></head><body>`);
+            win.document.write(`<h2>${name}</h2><p>${id}</p><div id="qr" class="qr"></div>`);
+            win.document.write(`<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></scr` + `ipt>`);
+            win.document.write(`<script>window.onload=function(){new QRCode(document.getElementById("qr"), { text: "${window.location.origin + window.location.pathname}?id=${id}", width: 200, height: 200 }); setTimeout(()=> {window.print(); window.close();}, 500);};</scr` + `ipt>`);
+            win.document.write(`</body></html>`);
+            win.document.close();
+        }
+
+        function printAllQR() {
+            const win = window.open('', '', 'width=800,height=600');
+            if (!win) return alert("Разрешите всплывающие окна");
+            let html = '<html><head><style>body{display:flex;flex-wrap:wrap;gap:15px;font-family:sans-serif;text-align:center;padding:20px;} .item{width:140px; border:1px solid #eee; padding:10px; page-break-inside:avoid; display:flex; flex-direction:column; align-items:center;} .name{font-size:10px; font-weight:bold; height:24px; overflow:hidden;} .qr{margin:10px 0;}</style></head><body>';
+            items.forEach(it => { html += `<div class="item"><div class="name">${it.name}</div><div id="qr-${it.id}" class="qr"></div><div>${it.id}</div></div>`; });
+            html += `<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></scr` + `ipt>`;
+            html += `<script>window.onload = function() { const data = ${JSON.stringify(items.map(i=>({id:i.id})))}; const url = "${window.location.origin + window.location.pathname}"; data.forEach(it => { new QRCode(document.getElementById("qr-"+it.id), {text: url+"?id="+it.id, width:100, height:100}); }); setTimeout(()=>{window.print(); window.close();}, 1000); };</script></body></html>`;
+            win.document.write(html);
+            win.document.close();
         }
 
         function openAddModal() { document.getElementById('addId').value = 'OBL-' + Math.floor(1000 + Math.random() * 9000); document.getElementById('addModal').classList.add('active'); }
@@ -348,6 +354,7 @@
         function filterByLoc(l) { const inp = document.getElementById('searchInput'); inp.value = (inp.value === l) ? '' : l; renderItems(); }
         function updateDropdowns() { ['addSubCatSelect', 'editSubCatSelect'].forEach(id => { const sel = document.getElementById(id); if(!sel) return; sel.innerHTML = '<option value="">-- Группа --</option>'; subCategories.forEach(c => sel.innerHTML += `<option value="${c}">${c}</option>`); sel.innerHTML += `<option value="NEW" style="color:var(--oko-green);">+ НОВАЯ</option>`; }); }
         function checkNewSub(type) { const val = document.getElementById(type === 'add' ? 'addSubCatSelect' : 'editSubCatSelect').value; document.getElementById(type === 'add' ? 'addCustomSub' : 'editCustomSub').style.display = (val === 'NEW') ? 'block' : 'none'; }
+        function exportToExcel() { const rows = items.map(i => ({ "ID": i.id, "Название": i.name, "Локация": i.location, "Группа": i.sub, "Статус": i.status==='ok'?'ОК':'РЕМОНТ', "Проверка": i.lastCheck })); const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Inventory"); XLSX.writeFile(wb, `Inventory.xlsx`); }
     </script>
 </body>
 </html>
