@@ -14,7 +14,6 @@
 
     <style>
         :root {
-            /* Темная тема */
             --oko-green: #8C916C;
             --oko-beige: #2D2D2D;
             --oko-brown: #E0E0E0;
@@ -61,13 +60,12 @@
         .item-image-container { width: 100%; height: 250px; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         .item-image { width: 100%; height: 100%; object-fit: contain; }
         .item-content { padding: 12px; }
-        .qr-wrapper canvas, .qr-wrapper img { filter: invert(1); } /* Инверсия QR для темного фона */
+        .qr-wrapper canvas, .qr-wrapper img { filter: invert(1); }
         
         .status-badge { position: absolute; top: 10px; right: 10px; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; z-index: 5; background: #330000; color: #ff4444; border: 1px solid #ff4444; }
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; overflow-y: auto; }
         .modal.active { display: block; }
-        #editModal { z-index: 3000 !important; }
 
         .modal-content { background: var(--oko-white); width: 100%; min-height: 100vh; padding: 20px; position: relative; }
         .close-btn { position: absolute; top: 10px; right: 15px; font-size: 2.5rem; border: none; background: none; cursor: pointer; color: var(--oko-brown); z-index: 10; }
@@ -173,12 +171,7 @@
     <div id="scannerModal" class="modal"><div class="modal-content"><button class="close-btn" onclick="closeScanner()">&times;</button><div id="reader"></div></div></div>
 
     <script>
-        const USERS = { 
-            "Tima": "oblacko1994", 
-            "Artem": "oblacko2024", 
-            "Stetxem": "oblacko2025" 
-        };
-
+        const USERS = { "Tima": "oblacko1994", "Artem": "oblacko2024", "Stetxem": "oblacko2025" };
         const firebaseConfig = {
             apiKey: "AIzaSyAk1A8PBDpSQjjiFoKyprSvzK4jO9Us_34",
             authDomain: "inventory-oko.firebaseapp.com",
@@ -191,6 +184,9 @@
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+        const DB_PATH = 'oblako_inventory';
+        const SETTINGS_PATH = 'oblako_settings/subCategories';
+
         let items = [], subCategories = [], globalStatusFilter = 'all', html5QrCode = null;
 
         function checkAccess() {
@@ -208,13 +204,13 @@
         function showApp() {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('main-app').style.display = 'block';
-            db.ref('inventory').on('value', snap => {
+            db.ref(DB_PATH).on('value', snap => {
                 items = snap.val() ? Object.values(snap.val()) : [];
                 renderItems(); updateStats();
                 const urlId = new URLSearchParams(window.location.search).get('id');
                 if (urlId) { window.history.replaceState({}, '', window.location.origin + window.location.pathname); showItemDetail(urlId); }
             });
-            db.ref('settings/subCategories').on('value', snap => {
+            db.ref(SETTINGS_PATH).on('value', snap => {
                 subCategories = snap.val() ? Object.values(snap.val()) : [];
                 updateDropdowns();
             });
@@ -237,13 +233,13 @@
 
             if (!name) return alert("Введите название!");
             if (isNameTaken(name)) return alert("Такое название уже есть!");
-            if (sub === 'NEW') { if (!custom) return alert("Имя группы!"); sub = custom; db.ref('settings/subCategories').push(sub); }
+            if (sub === 'NEW') { if (!custom) return alert("Имя группы!"); sub = custom; db.ref(SETTINGS_PATH).push(sub); }
             
             document.getElementById('loader').style.display = 'flex';
             try {
                 let photo = 'https://via.placeholder.com/400x200?text=НЕТ+ФОТО';
                 if (file) photo = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(file); });
-                await db.ref('inventory/' + id).set({ id, name, location: loc, sub: sub || "Прочее", photo, status: 'ok', lastCheck: 'Нет', lastCheckBy: '---', addedDate: new Date().toLocaleDateString('ru-RU'), createdBy: user, updatedBy: user });
+                await db.ref(DB_PATH + '/' + id).set({ id, name, location: loc, sub: sub || "Прочее", photo, status: 'ok', lastCheck: 'Нет', lastCheckBy: '---', addedDate: new Date().toLocaleDateString('ru-RU'), createdBy: user, updatedBy: user });
                 document.getElementById('loader').style.display = 'none'; closeModal('addModal');
                 document.getElementById('itemName').value = ""; document.getElementById('itemPhoto').value = "";
             } catch (e) { document.getElementById('loader').style.display = 'none'; alert(e.message); }
@@ -256,13 +252,13 @@
 
             if (!name) return alert("Имя!");
             if (isNameTaken(name, id)) return alert("Такое название уже есть!");
-            if (sub === 'NEW') { if (!custom) return alert("Группа!"); sub = custom; db.ref('settings/subCategories').push(sub); }
+            if (sub === 'NEW') { if (!custom) return alert("Группа!"); sub = custom; db.ref(SETTINGS_PATH).push(sub); }
 
             document.getElementById('loader').style.display = 'flex';
             try {
                 let up = { name, location: loc, sub: sub || "Прочее", updatedBy: user };
                 if (file) up.photo = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(file); });
-                await db.ref('inventory/' + id).update(up);
+                await db.ref(DB_PATH + '/' + id).update(up);
                 document.getElementById('loader').style.display = 'none'; closeModal('editModal'); setTimeout(() => showItemDetail(id), 300);
             } catch (e) { document.getElementById('loader').style.display = 'none'; alert(e.message); }
         }
@@ -324,16 +320,16 @@
             document.getElementById('fabMenu').classList.remove('active');
         }
 
-        function updateDropdowns() { ['addSubCatSelect', 'editSubCatSelect'].forEach(id => { const sel = document.getElementById(id); if(!sel) return; sel.innerHTML = '<option value="">-- Подгруппа --</option>'; subCategories.forEach(c => sel.innerHTML += `<option value="${c}">${c}</option>`); sel.innerHTML += '<option value="NEW" style="color:var(--oko-green);">+ НОВАЯ</option>'; }); }
+        function updateDropdowns() { ['addSubCatSelect', 'editSubCatSelect'].forEach(id => { const sel = document.getElementById(id); if(!sel) return; sel.innerHTML = '<option value="">-- Подгруппа --</option>'; subCategories.forEach(c => sel.innerHTML += `<option value="${c}">${c}</option>`); sel.innerHTML += `<option value="NEW" style="color:var(--oko-green);">+ НОВАЯ</option>`; }); }
         function checkNewSub(type) { const val = document.getElementById(type === 'add' ? 'addSubCatSelect' : 'editSubCatSelect').value; document.getElementById(type === 'add' ? 'addCustomSub' : 'editCustomSub').style.display = (val === 'NEW') ? 'block' : 'none'; }
         function setStatFilter(s) { globalStatusFilter = s; if (s === 'all') document.getElementById('searchInput').value = ''; renderItems(); updateStats(); }
         function filterByLoc(l) { const inp = document.getElementById('searchInput'); inp.value = (inp.value === l) ? '' : l; renderItems(); }
-        function openAddModal() { document.getElementById('addId').value = 'OKO-' + Math.floor(1000 + Math.random() * 9000); document.getElementById('fabMenu').classList.remove('active'); document.getElementById('addModal').classList.add('active'); }
+        function openAddModal() { document.getElementById('addId').value = 'OBL-' + Math.floor(1000 + Math.random() * 9000); document.getElementById('fabMenu').classList.remove('active'); document.getElementById('addModal').classList.add('active'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
         function openEditModal(id) { const it = items.find(i => i.id === id); document.getElementById('editItemTargetId').value = id; document.getElementById('editItemName').value = it.name; document.getElementById('editItemLocation').value = it.location; document.getElementById('editSubCatSelect').value = subCategories.includes(it.sub) ? it.sub : ""; document.getElementById('editModal').classList.add('active'); }
-        function upStat(id, s) { db.ref('inventory/' + id).update({ status: s }); setTimeout(() => showItemDetail(id), 300); }
-        function markCheck(id) { const user = localStorage.getItem('oko_user') || "---"; db.ref('inventory/' + id).update({ lastCheck: new Date().toLocaleDateString('ru-RU'), lastCheckBy: user }); closeModal('itemModal'); }
-        async function deleteItem(id) { if (confirm("Удалить?")) { await db.ref('inventory/' + id).remove(); closeModal('itemModal'); } }
+        function upStat(id, s) { db.ref(DB_PATH + '/' + id).update({ status: s }); setTimeout(() => showItemDetail(id), 300); }
+        function markCheck(id) { const user = localStorage.getItem('oko_user') || "---"; db.ref(DB_PATH + '/' + id).update({ lastCheck: new Date().toLocaleDateString('ru-RU'), lastCheckBy: user }); closeModal('itemModal'); }
+        async function deleteItem(id) { if (confirm("Удалить?")) { await db.ref(DB_PATH + '/' + id).remove(); closeModal('itemModal'); } }
         function updateStats() {
             document.getElementById('totalItems').innerText = items.length; document.getElementById('okItems').innerText = items.filter(i => i.status === 'ok').length; document.getElementById('repairItems').innerText = items.filter(i => i.status === 'repair').length; document.getElementById('locHall').innerText = items.filter(i => i.location === 'Зал').length; document.getElementById('locKitchen').innerText = items.filter(i => i.location === 'Кухня').length; document.getElementById('locBar').innerText = items.filter(i => i.location === 'Бар').length; document.getElementById('locWh').innerText = items.filter(i => i.location === 'Склад').length;
             document.querySelectorAll('.stats-bar .stat-card').forEach(c => c.classList.remove('active-filter')); const btn = document.getElementById('btn-' + globalStatusFilter); if(btn) btn.classList.add('active-filter');
